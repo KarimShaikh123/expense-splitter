@@ -5,7 +5,7 @@
 - Plain HTML/CSS/JS frontend (no framework, no build step) + Node serverless functions in `api/` (Vercel auto-detects them). **CommonJS**, matching url-shortener.
 - Database: **Neon Postgres** via `@neondatabase/serverless` — pinned exactly in task 1, version checked from the registry at install, never from memory. Env var `DATABASE_URL` (injected by the Vercel Neon integration, mirrored into `.env.local` for dev).
 - Tests: Node's built-in test runner (`node:test`) — no test framework dependency.
-- Formula: GitHub + Vercel + OpenCode. Repo: https://github.com/KarimShaikh123/expense-splitter (private). Live URL: filled in once the shell deploys (task 0).
+- Formula: GitHub + Vercel + OpenCode. Repo: https://github.com/KarimShaikh123/expense-splitter (private). Live: https://expense-splitter-gamma-coral.vercel.app (auto-deploys on push to `main`; alias of project `personal-e375/expense-splitter`). Shell deployed 2026-08-18 via `vercel --prod` direct upload of HEAD.
 
 ## What this app does
 
@@ -109,7 +109,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
 
 Living checklist — update the tick in the same commit that completes the task.
 
-- [ ] Task 0 — Scaffold: repo, AGENTS.md, README, schema.sql, static shell with mock data, deploy + verify by content
+- [x] Task 0 — Scaffold (2026-08-18): repo, AGENTS.md, README, schema.sql, static shell with mock data, currency decided for v1 (allowlist PKR/USD/GBP/EUR/AED/SAR/CAD). Deployed via `vercel --prod` (direct upload of HEAD), both pages verified by content — table-overflow fix (scroll wrapper) included after Karim's review
 - [ ] Task 1 — Provision Neon + apply schema + live probe
 - [ ] Task 2 — Groups API: create (name, members, currency), join by code, add member + tests (branch + PR)
 - [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests (branch + PR)
