@@ -7,7 +7,8 @@
   --lime: #d8ef62;
   --coral: #ff8d73;
   --blue: #315eff;
-  --error: #d64530;
+  --green: #22a559;
+  --error: #ee3124;
   --line: rgba(25, 32, 28, 0.19);
 }
 * { box-sizing: border-box; }
@@ -92,13 +93,18 @@ h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 
 .delete-button { padding: 7px 12px; font: 700 10px/1.2 "DM Mono", monospace; text-transform: uppercase; letter-spacing: 0.05em; color: var(--panel); background: var(--error); border: none; border-radius: 4px; cursor: pointer; }
 .delete-button:hover { filter: brightness(0.9); }
 .delete-button[data-armed="true"] { filter: brightness(0.8); }
+.delete-group-button { padding: 7px 10px; font: 700 10px/1.2 "DM Mono", monospace; text-transform: uppercase; letter-spacing: 0.05em; color: var(--error); background: transparent; border: 1px solid var(--error); border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.delete-group-button:hover { background: var(--error); color: var(--panel); }
+.delete-group-button[data-armed="true"] { background: var(--error); color: var(--panel); }
 
 .balance-list, .settle-list { list-style: none; margin: 0; padding: 0; }
-.balance-list li, .settle-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.balance-list li, .settle-list li { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .balance-list li:last-child, .settle-list li:last-child { border-bottom: none; padding-bottom: 0; }
 .balance-list li:first-child, .settle-list li:first-child { padding-top: 0; }
+.balance-phrase, .settle-phrase { color: var(--ink); }
+.balance-note { color: var(--ink-soft); }
 .balance-amount, .settle-amount { margin-left: auto; font: 700 14px/1.3 "DM Mono", monospace; white-space: nowrap; }
-.balance-pos { color: var(--blue); }
+.balance-pos { color: var(--green); }
 .balance-neg { color: var(--error); }
 .balance-zero { color: var(--ink-faint); }
 .settle-arrow { color: var(--coral); font-weight: 700; }

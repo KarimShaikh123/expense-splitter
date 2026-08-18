@@ -164,10 +164,17 @@ test("create handler rejects oversized streamed bodies", async () => {
   assert.match(res.payload.error, /too large/i);
 });
 
-test("get handler rejects non-GET", async () => {
+test("group route rejects methods other than GET and DELETE", async () => {
   const res = fakeRes();
   await getHandler({ method: "POST", query: { code: "K4B2QX" } }, res);
   assert.strictEqual(res.statusCode, 405);
+});
+
+test("delete 404s malformed codes before touching the database", async () => {
+  const res = fakeRes();
+  await getHandler({ method: "DELETE", query: { code: "bad" } }, res);
+  assert.strictEqual(res.statusCode, 404);
+  assert.match(res.payload.error, /not found/i);
 });
 
 test("get handler 404s malformed codes before touching the database", async () => {

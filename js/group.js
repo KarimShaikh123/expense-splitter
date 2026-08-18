@@ -1,6 +1,6 @@
 const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;
 const MAX_AMOUNT_CENTS = 1000000000;
-const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "AED", SAR: "SAR", CAD: "C$" };
+const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "Dh", SAR: "SR", CAD: "C$" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const state = {
@@ -25,7 +25,7 @@ function memberName(id) {
 function formatMoney(cents) {
   const symbol = (state.group && CURRENCY_SYMBOLS[state.group.currency]) || (state.group && state.group.currency) || "Rs";
   const amount = Math.abs(cents) / 100;
-  return symbol + " " + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return symbol + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function formatDate(isoDate) {
@@ -238,8 +238,9 @@ function renderBalances() {
   list.textContent = "";
   for (const balance of state.balances) {
     const li = document.createElement("li");
-    const name = document.createElement("span");
-    name.textContent = memberName(balance.memberId);
+    const phrase = document.createElement("span");
+    phrase.className = "balance-phrase";
+    const name = document.createTextNode(memberName(balance.memberId) + " ");
     const note = document.createElement("span");
     note.className = "balance-note";
     const amount = document.createElement("span");
@@ -247,18 +248,19 @@ function renderBalances() {
     if (balance.balanceCents > 0) {
       note.textContent = "is owed";
       amount.classList.add("balance-pos");
-      amount.textContent = "+ " + formatMoney(balance.balanceCents);
+      amount.textContent = "+" + formatMoney(balance.balanceCents);
     } else if (balance.balanceCents < 0) {
       note.textContent = "owes";
       amount.classList.add("balance-neg");
-      amount.textContent = "− " + formatMoney(balance.balanceCents);
+      amount.textContent = "−" + formatMoney(balance.balanceCents);
     } else {
       note.textContent = "settled";
       amount.classList.add("balance-zero");
       amount.textContent = formatMoney(0);
     }
-    li.appendChild(name);
-    li.appendChild(note);
+    phrase.appendChild(name);
+    phrase.appendChild(note);
+    li.appendChild(phrase);
     li.appendChild(amount);
     list.appendChild(li);
   }
@@ -270,19 +272,20 @@ function renderSettlements() {
   el("settle-empty").hidden = state.settlements.length > 0;
   for (const settlement of state.settlements) {
     const li = document.createElement("li");
-    const from = document.createElement("span");
-    from.textContent = memberName(settlement.from);
+    const phrase = document.createElement("span");
+    phrase.className = "settle-phrase";
+    const from = document.createTextNode(memberName(settlement.from) + " ");
     const arrow = document.createElement("span");
     arrow.className = "settle-arrow";
     arrow.textContent = "pays";
-    const to = document.createElement("span");
-    to.textContent = memberName(settlement.to);
+    const to = document.createTextNode(" " + memberName(settlement.to));
+    phrase.appendChild(from);
+    phrase.appendChild(arrow);
+    phrase.appendChild(to);
     const amount = document.createElement("span");
     amount.className = "settle-amount";
     amount.textContent = formatMoney(settlement.amountCents);
-    li.appendChild(from);
-    li.appendChild(arrow);
-    li.appendChild(to);
+    li.appendChild(phrase);
     li.appendChild(amount);
     list.appendChild(li);
   }
@@ -509,6 +512,66 @@ el("copy-code").addEventListener("click", async () => {
     }, 1500);
   } catch {
     window.prompt("Copy the group code:", state.group.code);
+  }
+});
+
+function groupUrl() {
+  return window.location.origin + "/group?code=" + encodeURIComponent(state.group.code);
+}
+
+el("copy-link").addEventListener("click", async () => {
+  const button = el("copy-link");
+  try {
+    await navigator.clipboard.writeText(groupUrl());
+    button.textContent = "Link copied";
+    setTimeout(() => {
+      button.textContent = "Copy link";
+    }, 1500);
+  } catch {
+    window.prompt("Copy the group link:", groupUrl());
+  }
+});
+
+function removeSavedGroup(code) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("my-groups") || "[]");
+    const groups = Array.isArray(parsed) ? parsed.filter((g) => g && g.code !== code) : [];
+    localStorage.setItem("my-groups", JSON.stringify(groups));
+  } catch {
+    return;
+  }
+}
+
+el("delete-group").addEventListener("click", async () => {
+  const button = el("delete-group");
+  if (button.dataset.armed !== "true") {
+    button.dataset.armed = "true";
+    button.textContent = "Sure? Deletes everything";
+    setTimeout(() => {
+      button.dataset.armed = "";
+      button.textContent = "Delete group";
+    }, 3000);
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Deleting…";
+  try {
+    const response = await fetch("/api/groups/" + encodeURIComponent(state.code), { method: "DELETE" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      showFormError((payload && payload.error) || "Could not delete the group. Try again.");
+      button.disabled = false;
+      button.dataset.armed = "";
+      button.textContent = "Delete group";
+      return;
+    }
+    removeSavedGroup(state.code);
+    window.location.href = "/";
+  } catch {
+    showFormError("Could not reach the server. Try again.");
+    button.disabled = false;
+    button.dataset.armed = "";
+    button.textContent = "Delete group";
   }
 });
 
