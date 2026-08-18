@@ -3,7 +3,7 @@
 ## Stack
 
 - Plain HTML/CSS/JS frontend (no framework, no build step) + Node serverless functions in `api/` (Vercel auto-detects them). **CommonJS**, matching url-shortener.
-- Database: **Neon Postgres** via `@neondatabase/serverless` — pinned exactly in task 1, version checked from the registry at install, never from memory. Env var `DATABASE_URL` (injected by the Vercel Neon integration, mirrored into `.env.local` for dev).
+- Database: **Neon Postgres** via `@neondatabase/serverless@1.1.0` (pinned exactly, version checked from the registry 2026-08-18). Env var `DATABASE_URL` (injected by the Vercel Neon integration, mirrored into `.env.local` for dev).
 - Tests: Node's built-in test runner (`node:test`) — no test framework dependency.
 - Formula: GitHub + Vercel + OpenCode. Repo: https://github.com/KarimShaikh123/expense-splitter (private). Live: https://expense-splitter-gamma-coral.vercel.app (auto-deploys on push to `main`; alias of project `personal-e375/expense-splitter`). Shell deployed 2026-08-18 via `vercel --prod` direct upload of HEAD.
 
@@ -32,7 +32,7 @@ expenses — one row per expense
   group_id      BIGINT       → groups(id) ON DELETE CASCADE
   description   TEXT
   amount_cents  INTEGER      total, integer paisa, CHECK > 0
-  paid_by       BIGINT       → members(id) — payer need not be a participant
+  paid_by       BIGINT       → members(id) ON DELETE CASCADE — payer need not be a participant
   split_type    TEXT         'equal' | 'exact'
   expense_date  DATE         the day the expense happened
   created_at    TIMESTAMPTZ  default now()
@@ -40,15 +40,14 @@ expenses — one row per expense
 
 expense_shares — resolved share per participant (the many-to-many join table)
   expense_id   BIGINT       → expenses(id) ON DELETE CASCADE
-  member_id    BIGINT       → members(id)
+  member_id    BIGINT       → members(id) ON DELETE CASCADE
   share_cents  INTEGER      CHECK >= 0
   PK(expense_id, member_id)
 ```
 
 - Indexes: `members_group_idx`, `expenses_group_idx`, `expense_shares_member_idx`.
 - Group codes: 6 chars, uppercase alphabet `[A-HJ-NP-Z2-9]` (no 0/O/1/I), collision retry on insert.
-- Currency (Karim's call 2026-08-18: in v1, not deferred): per-group, chosen at creation, default PKR. Allowlist: `PKR, USD, GBP, EUR, AED, SAR, CAD` — validated server-side, anything else → 400. Extending the list is a one-line change. All math stays integer minor units — currency is display-only, the algorithms never change.
-- No member-delete in v1, so `paid_by` and `expense_shares.member_id` have no CASCADE.
+- **Deletion rule (Karim's decision A, 2026-08-18)**: the four tables are a containment tree, so every FK cascades — deleting a group wipes its members, expenses, and shares in one statement. The live probe proved it (0 leftover rows). **Gotcha for the future**: v1 has no member-delete endpoint. If one is ever added, cascading would silently delete every expense that member paid for and strip their shares from other expenses (breaking the shares-sum invariant) — member deletion must reassign/recompute shares in a transaction FIRST; revisit these FKs then.
 - Source of truth: `db/schema.sql`.
 
 ### Stored vs computed (written down before code, per ladder rules)
@@ -76,14 +75,24 @@ expense_shares — resolved share per participant (the many-to-many join table)
 - Local dev: `npx vercel dev` (needs populated `.env.local`). The Vercel CLI is NOT on PATH in this environment — pin it from the root AGENTS.md: `~/.npm/_npx/69f9afb961c37556/node_modules/.bin/vercel`, or `npx vercel` from the repo dir.
 - Syntax check: `node --check <file>` (one file at a time)
 - Tests: `npm test` (`node --test`, discovers `test/*.test.js`)
-- Apply schema (task 1): `npm run db:migrate`
+- Apply schema: `npm run db:migrate` (reads `db/schema.sql`, splits on `;`, runs each statement separately — Neon's HTTP endpoint rejects multi-command calls; all `IF NOT EXISTS`, idempotent)
 - Deploy: push to `main` (auto), or `npx vercel --prod`. **Auto-deploys can silently fail to trigger** — webhook drops happen (url-shortener, 2026-08-17). Before declaring any deploy live, confirm the aliased deployment was built from HEAD: `vercel inspect <deployment-url>` → id, then `GET https://api.vercel.com/v13/deployments/<id>` with the token from `~/.local/share/com.vercel.cli/auth.json` → `meta.githubCommitSha`. Mismatch → `vercel --prod`.
 - Verify a deploy: read the live page content — never a status code alone. **Never poll production in a tight loop** — Vercel's attack challenge mode trips and the agent IP gets blocked. One request to verify; `vercel ls` for deploy status. If challenged, ask Karim to eyeball.
+
+## Neon Postgres (provisioned + verified live 2026-08-18, task 1)
+
+- Provisioned with `vercel install neon/neon --plan free_v3 --name expense-splitter --json` (plan slug `free_v3`, not `free`). No terms-acceptance block this time (url-shortener's first run had one). Store name on Neon's side: `restless-queen-95723862`. Resource connected to the project in the same step; env vars auto-pulled into `.env.local`.
+- Env vars injected (all 3 environments): `DATABASE_URL` (what the SDK reads), `DATABASE_URL_UNPOOLED`, `NEON_PROJECT_ID`, `NEON_AUTH_BASE_URL`, `PG*`/`POSTGRES_*` legacy names, `VERCEL_OIDC_TOKEN` (short-lived link token). `.env.local` is gitignored — never commit it.
+- `@neondatabase/serverless@1.1.0` facts (same as url-shortener, re-verified 2026-08-18): CommonJS works (`const { neon } = require('@neondatabase/serverless')`); `neon(process.env.DATABASE_URL)` returns a tagged-template function — call as `` sql`...` `` or `sql.query("SELECT ... $1", [param])`. **`COUNT(*)` returns a string** — coerce with `Number()` before numeric comparison.
+- `vercel install neon` also drops `.agents/skills/` + `skills-lock.json` into the repo (Neon agent skills) — gitignored, matching url-shortener; not app code.
+- **Task 1 probe — 10 checks, all green**: group/member/expense/shares inserts return identity ids; duplicate member name in a group rejected; `paid_by`/share → nonexistent member rejected; `amount_cents = 0`, `currency = 'XYZ'`, `split_type = 'bogus'` all rejected by CHECKs; group delete cascades to 0 leftover members/expenses/shares; tables end empty.
+- **Bug the probe caught**: the approved schema had no CASCADE on `expenses.paid_by` and `expense_shares.member_id`, so `DELETE FROM groups` failed — member rows were still referenced by rows about to be deleted. Karim chose option A (CASCADE both FKs) over hand-ordered deletes; applied live via `ALTER TABLE ... DROP/ADD CONSTRAINT` (`expenses_paid_by_fkey`, `expense_shares_member_id_fkey`) and to `schema.sql`, then re-probed green.
 
 ## Files
 
 - `vercel.json` — static output, `cleanUrls`, nosniff header
 - `db/schema.sql` — the schema, source of truth
+- `db/migrate.js` — applies `schema.sql` to Neon (run via `npm run db:migrate`)
 - `index.html` + `js/home.js` — create a group / join by code
 - `group.html` + `js/group.js` — group dashboard: expenses, add form, balances, who-pays-whom (mock data until tasks 5–6 wire the APIs)
 - `styles.css` — house tokens
@@ -110,7 +119,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
 Living checklist — update the tick in the same commit that completes the task.
 
 - [x] Task 0 — Scaffold (2026-08-18): repo, AGENTS.md, README, schema.sql, static shell with mock data, currency decided for v1 (allowlist PKR/USD/GBP/EUR/AED/SAR/CAD). Deployed via `vercel --prod` (direct upload of HEAD), both pages verified by content — table-overflow fix (scroll wrapper) included after Karim's review
-- [ ] Task 1 — Provision Neon + apply schema + live probe
+- [x] Task 1 — Provision Neon + apply schema + live probe (2026-08-18): Neon `free_v3` (`restless-queen-95723862`) provisioned + connected, `DATABASE_URL` injected; `npm run db:migrate` applied the schema. Probe caught a real bug — group delete blocked by the two FKs without CASCADE; Karim chose option A (CASCADE both), applied live via ALTER + schema.sql. Re-probe 10/10 green incl. cascade to 0 rows. `@neondatabase/serverless@1.1.0` pinned from the registry
 - [ ] Task 2 — Groups API: create (name, members, currency), join by code, add member + tests (branch + PR)
 - [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests (branch + PR)
 - [ ] Task 4 — Balances + greedy settlement + tests, walked through with Karim (branch + PR)

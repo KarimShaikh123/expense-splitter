@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   group_id BIGINT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
   amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
-  paid_by BIGINT NOT NULL REFERENCES members(id),
+  paid_by BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   split_type TEXT NOT NULL CHECK (split_type IN ('equal', 'exact')),
   expense_date DATE NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 
 CREATE TABLE IF NOT EXISTS expense_shares (
   expense_id BIGINT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
-  member_id BIGINT NOT NULL REFERENCES members(id),
+  member_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   share_cents INTEGER NOT NULL CHECK (share_cents >= 0),
   PRIMARY KEY (expense_id, member_id)
 );
