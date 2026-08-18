@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Track shared expenses for a group and see who owes whom." />
+    <title>Split — Group Expense Splitter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="Split home">Split<span>.</span></a>
+        <nav class="nav">
+          <a class="nav-button" href="#join">Join a group</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero">
+          <h1>Split expenses<span>.</span></h1>
+          <p class="blurb">Track shared expenses for a group and see who owes whom.</p>
+        </section>
+
+        <div class="home-panels">
+          <section class="panel" id="create">
+            <h2>Create a group</h2>
+            <form id="create-form">
+              <div class="field">
+                <label for="group-name">Group name</label>
+                <input id="group-name" type="text" placeholder="Flat 4B" autocomplete="off" required />
+              </div>
+              <div class="field">
+                <label for="member-names">Members — one name per line</label>
+                <textarea id="member-names" rows="4" placeholder="Karim&#10;Ali&#10;Sana" required></textarea>
+              </div>
+              <button type="submit" class="submit-button">Create group</button>
+              <p class="field-error" id="create-error" role="alert" hidden></p>
+            </form>
+          </section>
+
+          <section class="panel" id="join">
+            <h2>Join a group</h2>
+            <form id="join-form">
+              <div class="field">
+                <label for="join-code">Group code</label>
+                <input id="join-code" type="text" placeholder="K4B2QX" autocomplete="off" spellcheck="false" maxlength="6" required />
+              </div>
+              <button type="submit" class="submit-button">Open group</button>
+              <p class="field-error" id="join-error" role="alert" hidden></p>
+            </form>
+            <p class="join-note">Ask whoever created the group for its 6-letter code.</p>
+          </section>
+        </div>
+
+        <section class="steps" aria-label="How it works">
+          <div class="step"><span>1</span>Create a group, share the code</div>
+          <div class="step"><span>2</span>Log every expense — who paid, who shares it</div>
+          <div class="step"><span>3</span>See who pays whom to settle up</div>
+        </section>
+      </main>
+
+      <footer>
+        <p>Built by Karim Shaikh</p>
+      </footer>
+    </div>
+    <script src="js/home.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "expense-splitter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Group expense splitter — who owes whom. Vercel + Postgres",
+  "scripts": {
+    "build": "echo no-build",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Group expenses, balances, and who pays whom." />
+    <title>Group — Split</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="wordmark" href="/" aria-label="Split home">Split<span>.</span></a>
+        <nav class="nav">
+          <a class="nav-button" href="/">Home</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="group-head">
+          <h1 id="group-name"></h1>
+          <p class="blurb">
+            Group code
+            <span class="code-chip">
+              <code id="group-code"></code>
+              <button class="copy-button" id="copy-code" type="button">Copy</button>
+            </span>
+          </p>
+        </section>
+
+        <div class="member-row" id="member-row" aria-label="Members"></div>
+
+        <div class="stat-summary">
+          <div class="stat-card"><strong id="stat-expenses">0</strong><span>expenses</span></div>
+          <div class="stat-card"><strong id="stat-total">Rs 0</strong><span>total spent</span></div>
+          <div class="stat-card"><strong id="stat-transfers">0</strong><span>payments to settle</span></div>
+        </div>
+
+        <section class="panel">
+          <h2>Expenses</h2>
+          <div class="table-wrap">
+            <table class="stats-table expense-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Expense</th>
+                  <th>Paid by</th>
+                  <th>Split</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="expense-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-note" id="expense-empty" hidden>No expenses yet — add the first one below.</p>
+        </section>
+
+        <section class="panel">
+          <h2>Add an expense</h2>
+          <form id="expense-form">
+            <div class="field">
+              <label for="exp-desc">Description</label>
+              <input id="exp-desc" type="text" placeholder="Groceries, dinner, internet…" autocomplete="off" required />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="exp-amount">Amount (Rs)</label>
+                <input id="exp-amount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </div>
+              <div class="field">
+                <label for="exp-payer">Paid by</label>
+                <select id="exp-payer"></select>
+              </div>
+              <div class="field">
+                <label for="exp-date">Date</label>
+                <input id="exp-date" type="date" required />
+              </div>
+            </div>
+            <fieldset class="split-field">
+              <legend>Split</legend>
+              <label class="radio"><input type="radio" name="split-type" value="equal" checked /> Equally between selected people</label>
+              <label class="radio"><input type="radio" name="split-type" value="exact" /> Exact amounts</label>
+              <div class="split-grid" id="split-equal"></div>
+              <div class="split-grid" id="split-exact" hidden></div>
+            </fieldset>
+            <button type="submit" class="submit-button">Add expense</button>
+            <p class="field-error" id="expense-error" role="alert" hidden></p>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Balances</h2>
+          <ul class="balance-list" id="balance-list"></ul>
+        </section>
+
+        <section class="panel">
+          <h2>Who pays whom</h2>
+          <ul class="settle-list" id="settle-list"></ul>
+          <p class="empty-note" id="settle-empty" hidden>All settled up.</p>
+        </section>
+      </main>
+
+      <footer>
+        <p>Built by Karim Shaikh</p>
+      </footer>
+    </div>
+    <script src="js/group.js"></script>
+  </body>
+</html>
