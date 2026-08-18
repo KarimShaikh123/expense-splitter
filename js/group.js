@@ -128,6 +128,17 @@ function renderHead() {
     chip.textContent = member.name;
     row.appendChild(chip);
   }
+  const addChip = document.createElement("button");
+  addChip.type = "button";
+  addChip.className = "member-chip";
+  addChip.id = "add-member-chip";
+  addChip.textContent = "+ Add member";
+  addChip.addEventListener("click", () => {
+    el("member-error").hidden = true;
+    el("add-member-row").hidden = false;
+    el("new-member-name").focus();
+  });
+  row.appendChild(addChip);
 }
 
 function renderStats() {
@@ -501,6 +512,49 @@ document.querySelectorAll("input[name='split-type']").forEach((radio) => {
 
 el("expense-form").addEventListener("submit", submitExpense);
 el("expense-cancel").addEventListener("click", resetForm);
+
+el("add-member-cancel").addEventListener("click", () => {
+  el("add-member-row").hidden = true;
+  el("new-member-name").value = "";
+  el("member-error").hidden = true;
+});
+
+el("add-member-submit").addEventListener("click", async () => {
+  const errorEl = el("member-error");
+  const input = el("new-member-name");
+  const button = el("add-member-submit");
+  const name = input.value.trim();
+  errorEl.hidden = true;
+  if (!name) {
+    errorEl.textContent = "Enter a name first.";
+    errorEl.hidden = false;
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Adding…";
+  try {
+    const response = await fetch("/api/groups/" + encodeURIComponent(state.code) + "/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      errorEl.textContent = (payload && payload.error) || "Could not add the member. Try again.";
+      errorEl.hidden = false;
+      return;
+    }
+    input.value = "";
+    el("add-member-row").hidden = true;
+    await loadGroup();
+  } catch {
+    errorEl.textContent = "Could not reach the server. Try again.";
+    errorEl.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Add";
+  }
+});
 
 el("copy-code").addEventListener("click", async () => {
   const button = el("copy-code");
