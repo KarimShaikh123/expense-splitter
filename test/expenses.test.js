@@ -199,3 +199,20 @@ test("limits are the Karim-approved values", () => {
   assert.strictEqual(expenses.MAX_AMOUNT_CENTS, 1000000000);
   assert.strictEqual(expenses.MAX_DESCRIPTION_LENGTH, 100);
 });
+
+test("add handler reaches the DATABASE_URL gate only after code + body checks", { skip: !!process.env.DATABASE_URL }, async () => {
+  const res = fakeRes();
+  await addHandler(
+    { method: "POST", query: { code: "K4B2QX" }, body: { description: "x", amountCents: 100, paidBy: 1, splitType: "equal", participants: [1], date: "2026-08-18" } },
+    res
+  );
+  assert.strictEqual(res.statusCode, 500);
+  assert.match(res.payload.error, /database not configured/i);
+});
+
+test("item handler reaches the DATABASE_URL gate only after code + id checks", { skip: !!process.env.DATABASE_URL }, async () => {
+  const res = fakeRes();
+  await itemHandler({ method: "DELETE", query: { code: "K4B2QX", id: "12" } }, res);
+  assert.strictEqual(res.statusCode, 500);
+  assert.match(res.payload.error, /database not configured/i);
+});

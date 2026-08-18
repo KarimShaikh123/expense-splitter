@@ -207,6 +207,19 @@ test("members handler 404s malformed codes and 400s bad names before touching th
   assert.match(badName.payload.error, /member names/i);
 });
 
+test("validateNewGroup rejects non-string junk inside the members list", () => {
+  assert.match(groups.validateNewGroup({ name: "G", members: [1, "B"] }).error, /member names/i);
+  assert.match(groups.validateNewGroup({ name: "G", members: ["A", null] }).error, /member names/i);
+  assert.match(groups.validateNewGroup({ name: "G", members: ["A", { name: "B" }] }).error, /member names/i);
+});
+
+test("members handler reaches the DATABASE_URL gate only after code + body checks", { skip: !!process.env.DATABASE_URL }, async () => {
+  const res = fakeRes();
+  await membersHandler({ method: "POST", query: { code: "K4B2QX" }, body: { name: "Sana" } }, res);
+  assert.strictEqual(res.statusCode, 500);
+  assert.match(res.payload.error, /database not configured/i);
+});
+
 test("limits are the Karim-approved values", () => {
   assert.strictEqual(groups.MAX_GROUP_NAME_LENGTH, 50);
   assert.strictEqual(groups.MAX_MEMBER_NAME_LENGTH, 30);
