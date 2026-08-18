@@ -1,69 +1,29 @@
-const MOCK_GROUP = {
-  group: { code: "K4B2QX", name: "Flat 4B", currency: "PKR", createdAt: "2026-08-13T12:00:00+05:00" },
-  members: [
-    { id: 1, name: "Karim" },
-    { id: 2, name: "Ali" },
-    { id: 3, name: "Sana" }
-  ],
-  expenses: [
-    {
-      id: 1,
-      description: "Groceries — week 33",
-      amountCents: 420000,
-      paidBy: 1,
-      splitType: "equal",
-      date: "2026-08-14",
-      shares: [
-        { memberId: 1, shareCents: 140000 },
-        { memberId: 2, shareCents: 140000 },
-        { memberId: 3, shareCents: 140000 }
-      ]
-    },
-    {
-      id: 2,
-      description: "Dinner at BBQ Tonight",
-      amountCents: 360000,
-      paidBy: 2,
-      splitType: "equal",
-      date: "2026-08-16",
-      shares: [
-        { memberId: 1, shareCents: 180000 },
-        { memberId: 2, shareCents: 180000 }
-      ]
-    },
-    {
-      id: 3,
-      description: "Internet bill",
-      amountCents: 250000,
-      paidBy: 3,
-      splitType: "exact",
-      date: "2026-08-17",
-      shares: [
-        { memberId: 1, shareCents: 100000 },
-        { memberId: 2, shareCents: 100000 },
-        { memberId: 3, shareCents: 50000 }
-      ]
-    }
-  ],
-  balances: [
-    { memberId: 1, balanceCents: 0 },
-    { memberId: 2, balanceCents: -60000 },
-    { memberId: 3, balanceCents: 60000 }
-  ],
-  settlements: [{ from: 2, to: 3, amountCents: 60000 }]
-};
-
+const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;
+const MAX_AMOUNT_CENTS = 1000000000;
+const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "AED", SAR: "SAR", CAD: "C$" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "AED", SAR: "SAR", CAD: "C$" };
+const state = {
+  code: "",
+  group: null,
+  members: [],
+  expenses: [],
+  balances: [],
+  settlements: [],
+  editingId: null
+};
+
+function el(id) {
+  return document.getElementById(id);
+}
 
 function memberName(id) {
-  const member = MOCK_GROUP.members.find((m) => m.id === id);
+  const member = state.members.find((m) => m.id === id);
   return member ? member.name : "?";
 }
 
 function formatMoney(cents) {
-  const symbol = CURRENCY_SYMBOLS[MOCK_GROUP.group.currency] || MOCK_GROUP.group.currency;
+  const symbol = (state.group && CURRENCY_SYMBOLS[state.group.currency]) || (state.group && state.group.currency) || "Rs";
   const amount = Math.abs(cents) / 100;
   return symbol + " " + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
@@ -73,13 +33,96 @@ function formatDate(isoDate) {
   return day + " " + MONTHS[month - 1] + " " + year;
 }
 
+function rupeesToPaisa(value) {
+  const rupees = Number(value);
+  if (!isFinite(rupees) || rupees <= 0) return null;
+  return Math.round(rupees * 100);
+}
+
+function paisaToInput(cents) {
+  return (cents / 100).toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+}
+
+function showFormError(message) {
+  const errorEl = el("expense-error");
+  errorEl.textContent = message;
+  errorEl.hidden = false;
+}
+
+function hideFormError() {
+  el("expense-error").hidden = true;
+}
+
+function showPageError(message) {
+  el("group-loading").hidden = true;
+  el("group-error-message").textContent = message;
+  el("group-error").hidden = false;
+}
+
+async function loadGroup() {
+  const params = new URLSearchParams(window.location.search);
+  const code = (params.get("code") || "").trim().toUpperCase();
+  state.code = code;
+
+  if (!CODE_PATTERN.test(code)) {
+    showPageError("That group code doesn't look right — it should be 6 letters/digits.");
+    return;
+  }
+
+  let response;
+  try {
+    response = await fetch("/api/groups/" + encodeURIComponent(code));
+  } catch {
+    showPageError("Could not reach the server. Try again.");
+    return;
+  }
+
+  if (response.status === 404) {
+    showPageError("No group with that code — check it and try again.");
+    return;
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    showPageError((payload && payload.error) || "Could not load the group. Try again.");
+    return;
+  }
+
+  state.group = payload.group;
+  state.members = payload.members;
+  state.expenses = payload.expenses;
+  state.balances = payload.balances;
+  state.settlements = payload.settlements;
+
+  renderAll();
+  el("group-loading").hidden = true;
+  el("group-content").hidden = false;
+}
+
+function renderAll() {
+  renderHead();
+  renderStats();
+  renderExpenses();
+  renderForm();
+  renderBalances();
+  renderSettlements();
+}
+
 function renderHead() {
-  document.title = MOCK_GROUP.group.name + " — Split";
-  document.getElementById("group-name").textContent = MOCK_GROUP.group.name;
-  document.getElementById("group-code").textContent = MOCK_GROUP.group.code;
-  const row = document.getElementById("member-row");
+  document.title = state.group.name + " — Split";
+  el("group-name").textContent = state.group.name;
+  el("group-code").textContent = state.group.code;
+  const symbol = CURRENCY_SYMBOLS[state.group.currency] || state.group.currency;
+  el("exp-amount-label").textContent = "Amount (" + symbol + ")";
+  const row = el("member-row");
   row.textContent = "";
-  for (const member of MOCK_GROUP.members) {
+  for (const member of state.members) {
     const chip = document.createElement("span");
     chip.className = "member-chip";
     chip.textContent = member.name;
@@ -88,18 +131,18 @@ function renderHead() {
 }
 
 function renderStats() {
-  const total = MOCK_GROUP.expenses.reduce((sum, e) => sum + e.amountCents, 0);
-  document.getElementById("stat-expenses").textContent = MOCK_GROUP.expenses.length;
-  document.getElementById("stat-total").textContent = formatMoney(total);
-  document.getElementById("stat-transfers").textContent = MOCK_GROUP.settlements.length;
+  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  el("stat-expenses").textContent = state.expenses.length;
+  el("stat-total").textContent = formatMoney(total);
+  el("stat-transfers").textContent = state.settlements.length;
 }
 
 function renderExpenses() {
-  const body = document.getElementById("expense-body");
-  const empty = document.getElementById("expense-empty");
+  const body = el("expense-body");
   body.textContent = "";
-  empty.hidden = MOCK_GROUP.expenses.length > 0;
-  for (const expense of MOCK_GROUP.expenses) {
+  el("expense-empty").hidden = state.expenses.length > 0;
+
+  for (const expense of state.expenses) {
     const tr = document.createElement("tr");
 
     const dateTd = document.createElement("td");
@@ -123,16 +166,19 @@ function renderExpenses() {
     const actionsTd = document.createElement("td");
     const actions = document.createElement("div");
     actions.className = "row-actions";
+
     const editButton = document.createElement("button");
     editButton.className = "edit-button";
     editButton.type = "button";
-    editButton.dataset.id = expense.id;
     editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => startEdit(expense.id));
+
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-button";
     deleteButton.type = "button";
-    deleteButton.dataset.id = expense.id;
     deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => armDelete(deleteButton, expense.id));
+
     actions.appendChild(editButton);
     actions.appendChild(deleteButton);
     actionsTd.appendChild(actions);
@@ -147,10 +193,50 @@ function renderExpenses() {
   }
 }
 
+function armDelete(button, expenseId) {
+  if (button.dataset.armed === "true") {
+    clearTimeout(button.dataset.timer);
+    deleteExpense(button, expenseId);
+    return;
+  }
+  button.dataset.armed = "true";
+  button.textContent = "Sure?";
+  button.dataset.timer = setTimeout(() => {
+    button.dataset.armed = "";
+    button.textContent = "Delete";
+  }, 3000);
+}
+
+async function deleteExpense(button, expenseId) {
+  button.disabled = true;
+  button.textContent = "Deleting…";
+  try {
+    const response = await fetch("/api/groups/" + encodeURIComponent(state.code) + "/expenses/" + expenseId, {
+      method: "DELETE"
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      showFormError((payload && payload.error) || "Could not delete the expense. Try again.");
+      button.disabled = false;
+      button.dataset.armed = "";
+      button.textContent = "Delete";
+      return;
+    }
+    hideFormError();
+    resetForm();
+    await loadGroup();
+  } catch {
+    showFormError("Could not reach the server. Try again.");
+    button.disabled = false;
+    button.dataset.armed = "";
+    button.textContent = "Delete";
+  }
+}
+
 function renderBalances() {
-  const list = document.getElementById("balance-list");
+  const list = el("balance-list");
   list.textContent = "";
-  for (const balance of MOCK_GROUP.balances) {
+  for (const balance of state.balances) {
     const li = document.createElement("li");
     const name = document.createElement("span");
     name.textContent = memberName(balance.memberId);
@@ -179,11 +265,10 @@ function renderBalances() {
 }
 
 function renderSettlements() {
-  const list = document.getElementById("settle-list");
-  const empty = document.getElementById("settle-empty");
+  const list = el("settle-list");
   list.textContent = "";
-  empty.hidden = MOCK_GROUP.settlements.length > 0;
-  for (const settlement of MOCK_GROUP.settlements) {
+  el("settle-empty").hidden = state.settlements.length > 0;
+  for (const settlement of state.settlements) {
     const li = document.createElement("li");
     const from = document.createElement("span");
     from.textContent = memberName(settlement.from);
@@ -203,18 +288,21 @@ function renderSettlements() {
   }
 }
 
-function render() {
-  renderHead();
-  renderStats();
-  renderExpenses();
-  renderBalances();
-  renderSettlements();
-}
+function renderForm() {
+  const select = el("exp-payer");
+  select.textContent = "";
+  for (const member of state.members) {
+    const option = document.createElement("option");
+    option.value = member.id;
+    option.textContent = member.name;
+    select.appendChild(option);
+  }
 
-function buildSplitGrids() {
-  const equalGrid = document.getElementById("split-equal");
-  const exactGrid = document.getElementById("split-exact");
-  for (const member of MOCK_GROUP.members) {
+  const equalGrid = el("split-equal");
+  const exactGrid = el("split-exact");
+  equalGrid.textContent = "";
+  exactGrid.textContent = "";
+  for (const member of state.members) {
     const equalRow = document.createElement("label");
     equalRow.className = "split-row";
     const checkbox = document.createElement("input");
@@ -237,52 +325,191 @@ function buildSplitGrids() {
     exactRow.appendChild(amountInput);
     exactGrid.appendChild(exactRow);
   }
-}
 
-function buildPayerSelect() {
-  const select = document.getElementById("exp-payer");
-  for (const member of MOCK_GROUP.members) {
-    const option = document.createElement("option");
-    option.value = member.id;
-    option.textContent = member.name;
-    select.appendChild(option);
+  if (!el("exp-date").value) {
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    el("exp-date").value = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
   }
 }
 
-function initForm() {
-  buildPayerSelect();
-  buildSplitGrids();
-  const today = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  document.getElementById("exp-date").value =
-    today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
-
-  document.querySelectorAll("input[name='split-type']").forEach((radio) => {
-    radio.addEventListener("change", () => {
-      const exact = document.querySelector("input[name='split-type']:checked").value === "exact";
-      document.getElementById("split-equal").hidden = exact;
-      document.getElementById("split-exact").hidden = !exact;
-    });
-  });
-
-  document.getElementById("expense-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-  });
+function currentSplitType() {
+  return document.querySelector("input[name='split-type']:checked").value;
 }
 
-document.getElementById("copy-code").addEventListener("click", async () => {
-  const button = document.getElementById("copy-code");
-  const code = MOCK_GROUP.group.code;
+function startEdit(expenseId) {
+  const expense = state.expenses.find((e) => e.id === expenseId);
+  if (!expense) return;
+  state.editingId = expenseId;
+  hideFormError();
+
+  el("exp-desc").value = expense.description;
+  el("exp-amount").value = paisaToInput(expense.amountCents);
+  el("exp-payer").value = expense.paidBy;
+  el("exp-date").value = expense.date;
+
+  const splitType = expense.splitType;
+  document.querySelector("input[name='split-type'][value='" + splitType + "']").checked = true;
+  el("split-equal").hidden = splitType === "exact";
+  el("split-exact").hidden = splitType !== "exact";
+
+  if (splitType === "equal") {
+    const participantIds = new Set(expense.shares.map((s) => s.memberId));
+    for (const checkbox of el("split-equal").querySelectorAll("input[type='checkbox']")) {
+      checkbox.checked = participantIds.has(Number(checkbox.dataset.memberId));
+    }
+  } else {
+    const shareByMember = new Map(expense.shares.map((s) => [s.memberId, s.shareCents]));
+    for (const input of el("split-exact").querySelectorAll("input[type='number']")) {
+      const share = shareByMember.get(Number(input.dataset.memberId));
+      input.value = share === undefined ? "" : paisaToInput(share);
+    }
+  }
+
+  el("form-title").textContent = "Edit expense";
+  el("expense-submit").textContent = "Save changes";
+  el("expense-cancel").hidden = false;
+  el("expense-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function resetForm() {
+  state.editingId = null;
+  el("expense-form").reset();
+  el("form-title").textContent = "Add an expense";
+  el("expense-submit").textContent = "Add expense";
+  el("expense-cancel").hidden = true;
+  hideFormError();
+  const today = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  el("exp-date").value = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+  for (const checkbox of el("split-equal").querySelectorAll("input[type='checkbox']")) {
+    checkbox.checked = true;
+  }
+  for (const input of el("split-exact").querySelectorAll("input[type='number']")) {
+    input.value = "";
+  }
+  el("split-equal").hidden = false;
+  el("split-exact").hidden = true;
+}
+
+function collectPayload() {
+  const description = el("exp-desc").value.trim();
+  if (!description) {
+    showFormError("Give the expense a description.");
+    return null;
+  }
+
+  const amountCents = rupeesToPaisa(el("exp-amount").value);
+  if (!amountCents) {
+    showFormError("Enter an amount greater than zero.");
+    return null;
+  }
+  if (amountCents > MAX_AMOUNT_CENTS) {
+    showFormError("That amount is too large — the limit is " + formatMoney(MAX_AMOUNT_CENTS) + ".");
+    return null;
+  }
+
+  const splitType = currentSplitType();
+  let participants;
+  if (splitType === "equal") {
+    participants = Array.from(el("split-equal").querySelectorAll("input[type='checkbox']:checked")).map((box) =>
+      Number(box.dataset.memberId)
+    );
+    if (participants.length === 0) {
+      showFormError("Pick at least one person to split between.");
+      return null;
+    }
+  } else {
+    participants = [];
+    for (const input of el("split-exact").querySelectorAll("input[type='number']")) {
+      if (input.value.trim() === "") continue;
+      const shareCents = Math.round(Number(input.value) * 100);
+      if (!isFinite(shareCents) || shareCents < 0) {
+        showFormError("Exact amounts must be zero or more.");
+        return null;
+      }
+      participants.push({ memberId: Number(input.dataset.memberId), shareCents });
+    }
+    if (participants.length === 0) {
+      showFormError("Enter at least one exact amount.");
+      return null;
+    }
+  }
+
+  return {
+    description,
+    amountCents,
+    paidBy: Number(el("exp-payer").value),
+    splitType,
+    participants,
+    date: el("exp-date").value
+  };
+}
+
+function setSubmitBusy(busy) {
+  const button = el("expense-submit");
+  if (busy) {
+    button.dataset.label = button.textContent;
+    button.textContent = state.editingId ? "Saving…" : "Adding…";
+    button.disabled = true;
+  } else {
+    button.textContent = button.dataset.label || button.textContent;
+    button.disabled = false;
+  }
+}
+
+async function submitExpense(event) {
+  event.preventDefault();
+  hideFormError();
+  const payload = collectPayload();
+  if (!payload) return;
+
+  const editing = state.editingId !== null;
+  const url =
+    "/api/groups/" + encodeURIComponent(state.code) + "/expenses" + (editing ? "/" + state.editingId : "");
+  setSubmitBusy(true);
   try {
-    await navigator.clipboard.writeText(code);
+    const response = await fetch(url, {
+      method: editing ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      showFormError((result && result.error) || "Could not save the expense. Try again.");
+      return;
+    }
+    resetForm();
+    await loadGroup();
+  } catch {
+    showFormError("Could not reach the server. Try again.");
+  } finally {
+    setSubmitBusy(false);
+  }
+}
+
+document.querySelectorAll("input[name='split-type']").forEach((radio) => {
+  radio.addEventListener("change", () => {
+    const exact = currentSplitType() === "exact";
+    el("split-equal").hidden = exact;
+    el("split-exact").hidden = !exact;
+  });
+});
+
+el("expense-form").addEventListener("submit", submitExpense);
+el("expense-cancel").addEventListener("click", resetForm);
+
+el("copy-code").addEventListener("click", async () => {
+  const button = el("copy-code");
+  try {
+    await navigator.clipboard.writeText(state.group.code);
     button.textContent = "Copied";
     setTimeout(() => {
       button.textContent = "Copy";
     }, 1500);
   } catch {
-    window.prompt("Copy the group code:", code);
+    window.prompt("Copy the group code:", state.group.code);
   }
 });
 
-render();
-initForm();
+loadGroup();
