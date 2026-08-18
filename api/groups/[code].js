@@ -4,7 +4,7 @@ const { normalizeCode, CODE_PATTERN } = require("../lib/groups.js");
 const { computeBalances, settle } = require("../lib/settle.js");
 
 module.exports = async function handler(req, res) {
-  if (req.method !== "GET") {
+  if (req.method !== "GET" && req.method !== "DELETE") {
     res.status(405).json({ error: "Method Not Allowed" });
     return;
   }
@@ -37,6 +37,17 @@ module.exports = async function handler(req, res) {
     return;
   }
   const group = groupRows[0];
+
+  if (req.method === "DELETE") {
+    try {
+      await sql.query("DELETE FROM groups WHERE id = $1", [group.id]);
+    } catch (err) {
+      res.status(500).json({ error: "Could not delete the group" });
+      return;
+    }
+    res.status(200).json({ code: group.code });
+    return;
+  }
 
   let memberRows;
   try {

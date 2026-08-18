@@ -32,14 +32,22 @@
             <h1 id="group-name"></h1>
             <p class="blurb">
               Group code
-              <span class="code-chip">
-                <code id="group-code"></code>
-                <button class="copy-button" id="copy-code" type="button">Copy</button>
-              </span>
+            <span class="code-chip">
+              <code id="group-code"></code>
+              <button class="copy-button" id="copy-code" type="button">Copy</button>
+              <button class="copy-button" id="copy-link" type="button">Copy link</button>
+              <button class="delete-group-button" id="delete-group" type="button">Delete group</button>
+            </span>
             </p>
           </section>
 
           <div class="member-row" id="member-row" aria-label="Members"></div>
+          <div class="add-member-row" id="add-member-row" hidden>
+            <input id="new-member-name" type="text" placeholder="New member's name" autocomplete="off" maxlength="30" />
+            <button type="button" class="submit-button small-button" id="add-member-submit">Add</button>
+            <button type="button" class="cancel-button small-button" id="add-member-cancel">Cancel</button>
+          </div>
+          <p class="field-error" id="member-error" role="alert" hidden></p>
 
           <div class="stat-summary">
             <div class="stat-card"><strong id="stat-expenses">0</strong><span>expenses</span></div>
