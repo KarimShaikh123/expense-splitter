@@ -125,7 +125,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
 
 - A 200 status proves a server answered; only content proves it is the right site.
 - When stating a fact (versions, URLs, deploy targets), say what was checked versus assumed.
-- One task, one commit, one review — nothing committed before Karim reviews. Tier 2 rule: every feature task lands as a branch + pull request.
+- One task, one commit, one review — nothing committed before Karim reviews. Features are built on a branch and merged to `main` after Karim reviews the diff — no pull requests (Karim's call, 2026-08-18: PR #1 closed on sight).
 - Commit identity: Karim Shaikh <karimhshaikh009@gmail.com>.
 - Keep this file and README updated in the same commit as any structural change.
 
@@ -135,10 +135,10 @@ Living checklist — update the tick in the same commit that completes the task.
 
 - [x] Task 0 — Scaffold (2026-08-18): repo, AGENTS.md, README, schema.sql, static shell with mock data, currency decided for v1 (allowlist PKR/USD/GBP/EUR/AED/SAR/CAD). Deployed via `vercel --prod` (direct upload of HEAD), both pages verified by content — table-overflow fix (scroll wrapper) included after Karim's review
 - [x] Task 1 — Provision Neon + apply schema + live probe (2026-08-18): Neon `free_v3` (`restless-queen-95723862`) provisioned + connected, `DATABASE_URL` injected; `npm run db:migrate` applied the schema. Probe caught a real bug — group delete blocked by the two FKs without CASCADE; Karim chose option A (CASCADE both), applied live via ALTER + schema.sql. Re-probe 10/10 green incl. cascade to 0 rows. `@neondatabase/serverless@1.1.0` pinned from the registry
-- [x] Task 2 — Groups API (2026-08-18, first branch+PR): create (name, members, currency), open by code, add member. Karim's calls: limits 50/30/2–20, case-insensitive duplicate names (DB backstop `members_group_lower_name_idx`), 429 at member cap, 409 on duplicate. 23/23 tests + live probe green (201/200/409 paths, lowercase code normalization, cascade cleanup to 0 rows). Bug found live: `RETURNING ... ORDER BY` is invalid Postgres — sort by identity id in JS instead
-- [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests (branch + PR)
-- [ ] Task 4 — Balances + greedy settlement + tests, walked through with Karim (branch + PR)
-- [ ] Task 5 — UI home: create/join wired to APIs + currency select + loading/error/empty states (branch + PR)
-- [ ] Task 6 — UI group page: list, add/edit/delete, balances, settlement wired to APIs (branch + PR)
-- [ ] Task 7 — Hardening: keyless user, bad code, edge cases + docs (branch + PR)
+- [x] Task 2 — Groups API (2026-08-18): create (name, members, currency), open by code, add member. Karim's calls: limits 50/30/2–20, case-insensitive duplicate names (DB backstop `members_group_lower_name_idx`), 429 at member cap, 409 on duplicate. 23/23 tests + live probe green (201/200/409 paths, lowercase code normalization, cascade cleanup to 0 rows). Bug found live: `RETURNING ... ORDER BY` is invalid Postgres — sort by identity id in JS instead. Workflow: PR #1 was created, Karim closed it — branch diffs reviewed directly, no PRs from here on
+- [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests
+- [ ] Task 4 — Balances + greedy settlement + tests, walked through with Karim
+- [ ] Task 5 — UI home: create/join wired to APIs + currency select + loading/error/empty states
+- [ ] Task 6 — UI group page: list, add/edit/delete, balances, settlement wired to APIs
+- [ ] Task 7 — Hardening: keyless user, bad code, edge cases + docs
 - [ ] Task 8 — Ship: verify live content built from HEAD, explain-back, add to projects-index
