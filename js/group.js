@@ -62,9 +62,14 @@ function showPageError(message) {
 
 async function loadGroup() {
   const params = new URLSearchParams(window.location.search);
-  const code = (params.get("code") || "").trim().toUpperCase();
+  const rawCode = params.get("code");
+  const code = (rawCode || "").trim().toUpperCase();
   state.code = code;
 
+  if (!code) {
+    showPageError("No group code in the link — head home to create a group or join one.");
+    return;
+  }
   if (!CODE_PATTERN.test(code)) {
     showPageError("That group code doesn't look right — it should be 6 letters/digits.");
     return;
@@ -303,7 +308,16 @@ function renderSettlements() {
   }
 }
 
+function karachiWeekEnd() {
+  const shifted = new Date(Date.now() + 5 * 60 * 60 * 1000);
+  const day = shifted.getUTCDay();
+  const daysUntilSunday = day === 0 ? 0 : 7 - day;
+  const sunday = new Date(shifted.getTime() + daysUntilSunday * 24 * 60 * 60 * 1000);
+  return sunday.toISOString().slice(0, 10);
+}
+
 function renderForm() {
+  el("exp-date").max = karachiWeekEnd();
   const select = el("exp-payer");
   select.textContent = "";
   for (const member of state.members) {
