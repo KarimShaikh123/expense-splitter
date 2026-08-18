@@ -67,9 +67,16 @@ expense_shares — resolved share per participant (the many-to-many join table)
 - `POST /api/groups` — create. Body `{name, members:[names], currency?}` → `201 {code, name, currency, createdAt, members:[{id,name}]}`. Validation: name 1–50 chars; 2–20 members, each 1–30 chars, case-insensitive duplicates rejected; currency optional, defaults PKR, allowlist enforced. Code: 6 chars from `[A-HJ-NP-Z2-9]`, collision retry ×5 then 500.
 - `GET /api/groups/[code]` — open by code (input trimmed + uppercased). `200 {group:{code,name,currency,createdAt}, members, expenses, balances, settlements}` — expenses/balances/settlements stay empty until tasks 3–4 fill them. Malformed or unknown code → 404 (no hint which).
 - `POST /api/groups/[code]/members` — add a member. `201 {id,name}`; 429 at the 20-member cap; 409 on case-insensitive duplicate.
+- `POST /api/groups/[code]/expenses` — add expense. Body `{description, amountCents, paidBy, splitType, participants, date}` → `201` with the resolved shares. Equal split: shares resolved server-side (floor + leftover paisa to the first participants). Exact split: `participants` is `[{memberId, shareCents}]` and must sum to `amountCents` — the invariant, enforced before insert. Validation: description 1–100; amount 1..1,000,000,000 paisa (Rs 10,000,000 — Karim's call); payer must be a member (need not be a participant); date real, YYYY-MM-DD, no later than this week's Sunday Karachi (Karim's call — the whole current week is allowed); 429 at the 500-expense cap (Karim's call).
+- `PUT /api/groups/[code]/expenses/[id]` — full replacement (same body as add); shares re-resolved; `updated_at` bumps. 404 if the expense isn't in that group.
+- `DELETE /api/groups/[code]/expenses/[id]` — cascade removes the shares. 404 if not in that group.
+- All expense routes live under the group code on purpose: expense ids are sequential, so unscoped `/api/expenses/[id]` would let a stranger edit any group's expense by guessing ids. The code stays the only key.
+- `GET /api/groups/[code]` returns expenses newest-date-first (id DESC tiebreak), each with its shares, and asserts the shares-sum invariant per expense — a partially-written expense surfaces as 500 "Data inconsistency", never as silently wrong balances.
 - House rules (from the shortener): wrong method → 405, malformed JSON → 400, body > 8KB → 400. Every timestamp leaves the API as Karachi ISO with an explicit `+05:00`.
 - Known edge case: group creation is two statements (group, then members). If the second fails, an orphaned empty group remains — unreachable (nobody knows its code), harmless. Happened live twice during task 1→2 probing (ORDER BY bug below); both cleaned up.
 - **Gotcha pinned 2026-08-18**: Postgres `INSERT ... RETURNING` does NOT accept `ORDER BY` (syntax error) — sort by identity id in JS instead. Mock tests can't catch SQL syntax; live probes can.
+- **Gotcha pinned 2026-08-18 (task 3)**: same-table DELETE + INSERT inside one CTE statement does NOT work — all sub-statements see the same snapshot, so the INSERT collides with rows the DELETE is about to remove (proved live: `expense_shares_pkey` violation). Expense edit is therefore three ordered statements (UPDATE expense → DELETE shares → INSERT shares); the GET invariant assertion is the safety net for the tiny non-atomic window. Adding an expense IS atomic — one statement across two different tables (expenses + expense_shares via CTE + VALUES), with `::bigint`/`::integer` casts on the VALUES params (Neon infers them as text otherwise).
+- **Gotcha pinned 2026-08-18 (task 3)**: Neon returns DATE columns as JS Dates parsed at Karachi midnight (e.g. `2026-08-18` arrives as `2026-08-17T19:00:00.000Z`) — format back to `YYYY-MM-DD` with `toKarachiDate` (+5h shift, slice), never return the raw value.
 
 ## Identity / recovery / trust model (Karim's calls, 2026-08-18)
 
@@ -102,12 +109,16 @@ expense_shares — resolved share per participant (the many-to-many join table)
 - `vercel.json` — static output, `cleanUrls`, nosniff header
 - `db/schema.sql` — the schema, source of truth
 - `db/migrate.js` — applies `schema.sql` to Neon (run via `npm run db:migrate`)
-- `api/lib/http.js` — shared: 8KB-capped JSON body reader, unique-violation detector, Karachi ISO formatter
+- `api/lib/http.js` — shared: 8KB-capped JSON body reader, unique-violation detector, Karachi ISO + date formatters
 - `api/lib/groups.js` — shared: code generation + normalization, group/member/currency validation, `createGroup`
+- `api/lib/expenses.js` — shared: week bounds (Karachi), date validation, equal-share resolution, expense validation with the shares-sum invariant
 - `api/groups/index.js` — POST /api/groups (create)
-- `api/groups/[code].js` — GET /api/groups/[code] (open by code, full contract shape)
+- `api/groups/[code].js` — GET /api/groups/[code] (open by code, full contract shape incl. expenses + invariant assertion)
 - `api/groups/[code]/members.js` — POST /api/groups/[code]/members (add member)
+- `api/groups/[code]/expenses/index.js` — POST add expense (atomic single-statement insert)
+- `api/groups/[code]/expenses/[id].js` — PUT edit (full replacement) + DELETE
 - `test/groups.test.js` — 23 tests: validation, code generation, createGroup with mock sql, handler guards (no DB needed)
+- `test/expenses.test.js` — 14 tests: share resolution, Karachi week bounds, date/amount/split validation, handler guards
 - `index.html` + `js/home.js` — create a group / join by code
 - `group.html` + `js/group.js` — group dashboard: expenses, add form, balances, who-pays-whom (mock data until tasks 5–6 wire the APIs)
 - `styles.css` — house tokens
@@ -136,7 +147,7 @@ Living checklist — update the tick in the same commit that completes the task.
 - [x] Task 0 — Scaffold (2026-08-18): repo, AGENTS.md, README, schema.sql, static shell with mock data, currency decided for v1 (allowlist PKR/USD/GBP/EUR/AED/SAR/CAD). Deployed via `vercel --prod` (direct upload of HEAD), both pages verified by content — table-overflow fix (scroll wrapper) included after Karim's review
 - [x] Task 1 — Provision Neon + apply schema + live probe (2026-08-18): Neon `free_v3` (`restless-queen-95723862`) provisioned + connected, `DATABASE_URL` injected; `npm run db:migrate` applied the schema. Probe caught a real bug — group delete blocked by the two FKs without CASCADE; Karim chose option A (CASCADE both), applied live via ALTER + schema.sql. Re-probe 10/10 green incl. cascade to 0 rows. `@neondatabase/serverless@1.1.0` pinned from the registry
 - [x] Task 2 — Groups API (2026-08-18): create (name, members, currency), open by code, add member. Karim's calls: limits 50/30/2–20, case-insensitive duplicate names (DB backstop `members_group_lower_name_idx`), 429 at member cap, 409 on duplicate. 23/23 tests + live probe green (201/200/409 paths, lowercase code normalization, cascade cleanup to 0 rows). Bug found live: `RETURNING ... ORDER BY` is invalid Postgres — sort by identity id in JS instead. Workflow: PR #1 was created, Karim closed it — branch diffs reviewed directly, no PRs from here on
-- [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests
+- [x] Task 3 — Expenses API (2026-08-18): add (atomic 2-table CTE insert), edit (full replacement), delete, GET returns expenses newest-first with shares. Karim's calls: 500-expense cap, Rs 10M amount cap, dates allowed through this week's Sunday (Karachi), description 1–100. Shares-sum invariant enforced at write AND asserted at read (500 "Data inconsistency" beats silently wrong balances). Two bugs found live: same-table DELETE+INSERT in one CTE collides on its own snapshot (edit = 3 ordered statements instead); Neon DATE columns arrive as Karachi-midnight JS Dates (toKarachiDate fix). 37/37 tests + full-flow probe green
 - [ ] Task 4 — Balances + greedy settlement + tests, walked through with Karim
 - [ ] Task 5 — UI home: create/join wired to APIs + currency select + loading/error/empty states
 - [ ] Task 6 — UI group page: list, add/edit/delete, balances, settlement wired to APIs
