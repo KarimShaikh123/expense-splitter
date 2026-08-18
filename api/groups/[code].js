@@ -1,6 +1,7 @@
 const { neon } = require("@neondatabase/serverless");
 const { toKarachiIso, toKarachiDate } = require("../lib/http.js");
 const { normalizeCode, CODE_PATTERN } = require("../lib/groups.js");
+const { computeBalances, settle } = require("../lib/settle.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -92,6 +93,16 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  let balances;
+  let settlements;
+  try {
+    balances = computeBalances(memberRows.map((m) => Number(m.id)), expenses);
+    settlements = settle(balances);
+  } catch (err) {
+    res.status(500).json({ error: "Data inconsistency — balances do not sum to zero" });
+    return;
+  }
+
   res.status(200).json({
     group: {
       code: group.code,
@@ -101,8 +112,8 @@ module.exports = async function handler(req, res) {
     },
     members: memberRows.map((m) => ({ id: Number(m.id), name: m.name })),
     expenses,
-    balances: [],
-    settlements: []
+    balances,
+    settlements
   });
 };
 
