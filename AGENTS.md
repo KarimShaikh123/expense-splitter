@@ -45,7 +45,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
   PK(expense_id, member_id)
 ```
 
-- Indexes: `members_group_idx`, `expenses_group_idx`, `expense_shares_member_idx`.
+- Indexes: `members_group_idx`, `members_group_lower_name_idx` (UNIQUE on `(group_id, lower(name))` — DB backstop for the case-insensitive duplicate rule), `expenses_group_idx`, `expense_shares_member_idx`.
 - Group codes: 6 chars, uppercase alphabet `[A-HJ-NP-Z2-9]` (no 0/O/1/I), collision retry on insert.
 - **Deletion rule (Karim's decision A, 2026-08-18)**: the four tables are a containment tree, so every FK cascades — deleting a group wipes its members, expenses, and shares in one statement. The live probe proved it (0 leftover rows). **Gotcha for the future**: v1 has no member-delete endpoint. If one is ever added, cascading would silently delete every expense that member paid for and strip their shares from other expenses (breaking the shares-sum invariant) — member deletion must reassign/recompute shares in a transaction FIRST; revisit these FKs then.
 - Source of truth: `db/schema.sql`.
@@ -61,6 +61,15 @@ expense_shares — resolved share per participant (the many-to-many join table)
 1. **Money is integer paisa** — never floats. Split A paisa n ways: everyone gets `floor(A/n)`; the `A mod n` remainder paisa go one each to the first participants. Shares always sum to exactly A — asserted.
 2. **Balances**: each expense moves two ways — payer's balance goes up by the full amount; every participant's goes down by their share. Sum over all expenses: balance = paid − consumed. Positive = is owed; negative = owes. All balances in a group always sum to 0 — asserted.
 3. **Settlement (greedy)**: ignore zeros; repeatedly take the biggest debtor and biggest creditor, pay the smaller of the two amounts (clears at least one of them), cross them out, repeat. Each step clears ≥1 person → at most n−1 payments. Honest caveat: greedy is not always the absolute minimum number of payments (that problem is NP-hard), but it always settles everyone — this is what real apps ship.
+
+## API contract (Karim-approved 2026-08-18)
+
+- `POST /api/groups` — create. Body `{name, members:[names], currency?}` → `201 {code, name, currency, createdAt, members:[{id,name}]}`. Validation: name 1–50 chars; 2–20 members, each 1–30 chars, case-insensitive duplicates rejected; currency optional, defaults PKR, allowlist enforced. Code: 6 chars from `[A-HJ-NP-Z2-9]`, collision retry ×5 then 500.
+- `GET /api/groups/[code]` — open by code (input trimmed + uppercased). `200 {group:{code,name,currency,createdAt}, members, expenses, balances, settlements}` — expenses/balances/settlements stay empty until tasks 3–4 fill them. Malformed or unknown code → 404 (no hint which).
+- `POST /api/groups/[code]/members` — add a member. `201 {id,name}`; 429 at the 20-member cap; 409 on case-insensitive duplicate.
+- House rules (from the shortener): wrong method → 405, malformed JSON → 400, body > 8KB → 400. Every timestamp leaves the API as Karachi ISO with an explicit `+05:00`.
+- Known edge case: group creation is two statements (group, then members). If the second fails, an orphaned empty group remains — unreachable (nobody knows its code), harmless. Happened live twice during task 1→2 probing (ORDER BY bug below); both cleaned up.
+- **Gotcha pinned 2026-08-18**: Postgres `INSERT ... RETURNING` does NOT accept `ORDER BY` (syntax error) — sort by identity id in JS instead. Mock tests can't catch SQL syntax; live probes can.
 
 ## Identity / recovery / trust model (Karim's calls, 2026-08-18)
 
@@ -93,6 +102,12 @@ expense_shares — resolved share per participant (the many-to-many join table)
 - `vercel.json` — static output, `cleanUrls`, nosniff header
 - `db/schema.sql` — the schema, source of truth
 - `db/migrate.js` — applies `schema.sql` to Neon (run via `npm run db:migrate`)
+- `api/lib/http.js` — shared: 8KB-capped JSON body reader, unique-violation detector, Karachi ISO formatter
+- `api/lib/groups.js` — shared: code generation + normalization, group/member/currency validation, `createGroup`
+- `api/groups/index.js` — POST /api/groups (create)
+- `api/groups/[code].js` — GET /api/groups/[code] (open by code, full contract shape)
+- `api/groups/[code]/members.js` — POST /api/groups/[code]/members (add member)
+- `test/groups.test.js` — 23 tests: validation, code generation, createGroup with mock sql, handler guards (no DB needed)
 - `index.html` + `js/home.js` — create a group / join by code
 - `group.html` + `js/group.js` — group dashboard: expenses, add form, balances, who-pays-whom (mock data until tasks 5–6 wire the APIs)
 - `styles.css` — house tokens
@@ -120,7 +135,7 @@ Living checklist — update the tick in the same commit that completes the task.
 
 - [x] Task 0 — Scaffold (2026-08-18): repo, AGENTS.md, README, schema.sql, static shell with mock data, currency decided for v1 (allowlist PKR/USD/GBP/EUR/AED/SAR/CAD). Deployed via `vercel --prod` (direct upload of HEAD), both pages verified by content — table-overflow fix (scroll wrapper) included after Karim's review
 - [x] Task 1 — Provision Neon + apply schema + live probe (2026-08-18): Neon `free_v3` (`restless-queen-95723862`) provisioned + connected, `DATABASE_URL` injected; `npm run db:migrate` applied the schema. Probe caught a real bug — group delete blocked by the two FKs without CASCADE; Karim chose option A (CASCADE both), applied live via ALTER + schema.sql. Re-probe 10/10 green incl. cascade to 0 rows. `@neondatabase/serverless@1.1.0` pinned from the registry
-- [ ] Task 2 — Groups API: create (name, members, currency), join by code, add member + tests (branch + PR)
+- [x] Task 2 — Groups API (2026-08-18, first branch+PR): create (name, members, currency), open by code, add member. Karim's calls: limits 50/30/2–20, case-insensitive duplicate names (DB backstop `members_group_lower_name_idx`), 429 at member cap, 409 on duplicate. 23/23 tests + live probe green (201/200/409 paths, lowercase code normalization, cascade cleanup to 0 rows). Bug found live: `RETURNING ... ORDER BY` is invalid Postgres — sort by identity id in JS instead
 - [ ] Task 3 — Expenses API: add/edit/delete + validation + paisa-split invariants + tests (branch + PR)
 - [ ] Task 4 — Balances + greedy settlement + tests, walked through with Karim (branch + PR)
 - [ ] Task 5 — UI home: create/join wired to APIs + currency select + loading/error/empty states (branch + PR)

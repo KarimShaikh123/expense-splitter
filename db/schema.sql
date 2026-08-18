@@ -33,5 +33,6 @@ CREATE TABLE IF NOT EXISTS expense_shares (
 );
 
 CREATE INDEX IF NOT EXISTS members_group_idx ON members(group_id);
+CREATE UNIQUE INDEX IF NOT EXISTS members_group_lower_name_idx ON members(group_id, lower(name));
 CREATE INDEX IF NOT EXISTS expenses_group_idx ON expenses(group_id);
 CREATE INDEX IF NOT EXISTS expense_shares_member_idx ON expense_shares(member_id);
