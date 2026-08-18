@@ -37,4 +37,9 @@ function toKarachiIso(date) {
   return shifted.toISOString().replace("Z", "+05:00");
 }
 
-module.exports = { readJsonBody, isUniqueViolation, toKarachiIso, MAX_BODY_LENGTH };
+function toKarachiDate(date) {
+  const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
+}
+
+module.exports = { readJsonBody, isUniqueViolation, toKarachiIso, toKarachiDate, MAX_BODY_LENGTH };
