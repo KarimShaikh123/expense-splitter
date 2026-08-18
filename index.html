@@ -37,7 +37,19 @@
                 <label for="member-names">Members — one name per line</label>
                 <textarea id="member-names" rows="4" placeholder="Karim&#10;Ali&#10;Sana" required></textarea>
               </div>
-              <button type="submit" class="submit-button">Create group</button>
+              <div class="field">
+                <label for="group-currency">Currency</label>
+                <select id="group-currency">
+                  <option value="PKR" selected>PKR — Rs</option>
+                  <option value="USD">USD — $</option>
+                  <option value="GBP">GBP — £</option>
+                  <option value="EUR">EUR — €</option>
+                  <option value="AED">AED</option>
+                  <option value="SAR">SAR</option>
+                  <option value="CAD">CAD — C$</option>
+                </select>
+              </div>
+              <button type="submit" class="submit-button" id="create-button">Create group</button>
               <p class="field-error" id="create-error" role="alert" hidden></p>
             </form>
           </section>
@@ -49,12 +61,18 @@
                 <label for="join-code">Group code</label>
                 <input id="join-code" type="text" placeholder="K4B2QX" autocomplete="off" spellcheck="false" maxlength="6" required />
               </div>
-              <button type="submit" class="submit-button">Open group</button>
+              <button type="submit" class="submit-button" id="join-button">Open group</button>
               <p class="field-error" id="join-error" role="alert" hidden></p>
             </form>
             <p class="join-note">Ask whoever created the group for its 6-letter code.</p>
           </section>
         </div>
+
+        <section class="panel your-groups-panel">
+          <h2>Your groups</h2>
+          <ul class="your-groups" id="your-groups"></ul>
+          <p class="empty-note" id="your-groups-empty" hidden>Groups you create or open appear here — this browser only.</p>
+        </section>
 
         <section class="steps" aria-label="How it works">
           <div class="step"><span>1</span>Create a group, share the code</div>
