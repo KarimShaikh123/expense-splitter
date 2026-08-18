@@ -1,6 +1,6 @@
 const CODE_PATTERN = /^[A-HJ-NP-Z2-9]{6}$/;
 const MAX_AMOUNT_CENTS = 1000000000;
-const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "Dh", SAR: "SR", CAD: "C$" };
+const CURRENCY_SYMBOLS = { PKR: "Rs", USD: "$", GBP: "£", EUR: "€", AED: "د.إ", SAR: "﷼", CAD: "C$" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const state = {
@@ -25,7 +25,8 @@ function memberName(id) {
 function formatMoney(cents) {
   const symbol = (state.group && CURRENCY_SYMBOLS[state.group.currency]) || (state.group && state.group.currency) || "Rs";
   const amount = Math.abs(cents) / 100;
-  return symbol + amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const formatted = amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return /[A-Za-z\u0600-\u06FF]/.test(symbol) ? symbol + " " + formatted : symbol + formatted;
 }
 
 function formatDate(isoDate) {

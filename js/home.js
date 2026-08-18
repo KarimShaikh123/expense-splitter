@@ -37,6 +37,15 @@ function saveGroup(code, name) {
   }
 }
 
+function removeStoredGroup(code) {
+  const groups = loadMyGroups().filter((g) => g.code !== code);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+  } catch {
+    return;
+  }
+}
+
 function renderMyGroups() {
   const list = document.getElementById("your-groups");
   const empty = document.getElementById("your-groups-empty");
@@ -45,6 +54,7 @@ function renderMyGroups() {
   empty.hidden = groups.length > 0;
   for (const group of groups) {
     const li = document.createElement("li");
+
     const link = document.createElement("a");
     link.href = "/group?code=" + encodeURIComponent(group.code);
     const name = document.createElement("span");
@@ -54,8 +64,57 @@ function renderMyGroups() {
     code.textContent = group.code;
     link.appendChild(name);
     link.appendChild(code);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "your-group-delete";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => armGroupDelete(deleteButton, group.code));
+
     li.appendChild(link);
+    li.appendChild(deleteButton);
     list.appendChild(li);
+  }
+}
+
+function armGroupDelete(button, code) {
+  if (button.dataset.armed === "true") {
+    clearTimeout(Number(button.dataset.timer));
+    deleteStoredGroup(button, code);
+    return;
+  }
+  button.dataset.armed = "true";
+  button.textContent = "Sure?";
+  button.dataset.timer = setTimeout(() => {
+    button.dataset.armed = "";
+    button.textContent = "Delete";
+  }, 3000);
+}
+
+async function deleteStoredGroup(button, code) {
+  const errorEl = document.getElementById("your-groups-error");
+  errorEl.hidden = true;
+  button.disabled = true;
+  button.textContent = "Deleting…";
+  try {
+    const response = await fetch("/api/groups/" + encodeURIComponent(code), { method: "DELETE" });
+    if (response.ok || response.status === 404) {
+      removeStoredGroup(code);
+      renderMyGroups();
+      return;
+    }
+    const payload = await response.json().catch(() => null);
+    errorEl.textContent = (payload && payload.error) || "Could not delete the group. Try again.";
+    errorEl.hidden = false;
+    button.disabled = false;
+    button.dataset.armed = "";
+    button.textContent = "Delete";
+  } catch {
+    errorEl.textContent = "Could not reach the server. Try again.";
+    errorEl.hidden = false;
+    button.disabled = false;
+    button.dataset.armed = "";
+    button.textContent = "Delete";
   }
 }
 
