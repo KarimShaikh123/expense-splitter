@@ -80,7 +80,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
 
 ## Identity / recovery / trust model (Karim's calls, 2026-08-18)
 
-- The group code IS the access key. Creator's browser stores its group codes in localStorage for the "your groups" list; a fresh browser enters the code again (shared like an invite link). No code = no access — by design, documented in README.
+- The group code IS the access key. Creator's browser stores its group codes in localStorage (`my-groups` key: `[{code, name}]`, newest first, deduped by code) which drives the home page's "Your groups" list; a fresh browser enters the code again (shared like an invite link). No code = no access — by design, documented in README. Corrupt/missing storage degrades gracefully to an empty list.
 - Anyone with the code can add/edit/delete ANY expense (shared notepad). No per-expense ownership in v1.
 - The gate is validation (code format, FKs, amounts), not auth — the accepted gap, documented.
 - Secrets: only `DATABASE_URL` — held by Vercel (Neon integration) + `.env.local` (gitignored). Nothing client-side.
@@ -121,7 +121,7 @@ expense_shares — resolved share per participant (the many-to-many join table)
 - `test/groups.test.js` — 23 tests: validation, code generation, createGroup with mock sql, handler guards (no DB needed)
 - `test/expenses.test.js` — 14 tests: share resolution, Karachi week bounds, date/amount/split validation, handler guards
 - `test/settle.test.js` — 11 tests: the Flat 4B + four-person walkthroughs verbatim, payer-outside-split, zero cases, n−1 bound + exact-settlement property, deterministic ties, sum-to-zero assert
-- `index.html` + `js/home.js` — create a group / join by code
+- `index.html` + `js/home.js` — create a group (name, members, currency) / join by code, both wired to the APIs with busy buttons + verbatim API errors; "Your groups" list from localStorage
 - `group.html` + `js/group.js` — group dashboard: expenses, add form, balances, who-pays-whom (mock data until tasks 5–6 wire the APIs)
 - `styles.css` — house tokens
 
@@ -151,7 +151,7 @@ Living checklist — update the tick in the same commit that completes the task.
 - [x] Task 2 — Groups API (2026-08-18): create (name, members, currency), open by code, add member. Karim's calls: limits 50/30/2–20, case-insensitive duplicate names (DB backstop `members_group_lower_name_idx`), 429 at member cap, 409 on duplicate. 23/23 tests + live probe green (201/200/409 paths, lowercase code normalization, cascade cleanup to 0 rows). Bug found live: `RETURNING ... ORDER BY` is invalid Postgres — sort by identity id in JS instead. Workflow: PR #1 was created, Karim closed it — branch diffs reviewed directly, no PRs from here on
 - [x] Task 3 — Expenses API (2026-08-18): add (atomic 2-table CTE insert), edit (full replacement), delete, GET returns expenses newest-first with shares. Karim's calls: 500-expense cap, Rs 10M amount cap, dates allowed through this week's Sunday (Karachi), description 1–100. Shares-sum invariant enforced at write AND asserted at read (500 "Data inconsistency" beats silently wrong balances). Two bugs found live: same-table DELETE+INSERT in one CTE collides on its own snapshot (edit = 3 ordered statements instead); Neon DATE columns arrive as Karachi-midnight JS Dates (toKarachiDate fix). 37/37 tests + full-flow probe green
 - [x] Task 4 — Balances + settlement (2026-08-18): `api/lib/settle.js` — computeBalances + greedy settle, computed per request, never stored. Walked through with Karim before coding (Flat 4B + four-person examples); the tests encode both walkthroughs verbatim. Ties break by member id (deterministic plans); sum-to-zero asserted before settling (500 beats wrong plan). 48/48 tests + live probe matched the walkthrough exactly (Ali pays Sana Rs 600)
-- [ ] Task 5 — UI home: create/join wired to APIs + currency select + loading/error/empty states
+- [x] Task 5 — UI home (2026-08-18): create (with currency select) + join wired to the APIs — busy buttons ("Creating…"/"Opening…"), API error messages surfaced verbatim, network-failure message, client-side format check on codes. "Your groups" list from localStorage `my-groups` (identity story: fresh browser = empty list + join form). DOM probe green: create 201→navigate+save, create 400→verbatim error no navigation, join bad-format/404/200 paths, list renders after reload
 - [ ] Task 6 — UI group page: list, add/edit/delete, balances, settlement wired to APIs
 - [ ] Task 7 — Hardening: keyless user, bad code, edge cases + docs
 - [ ] Task 8 — Ship: verify live content built from HEAD, explain-back, add to projects-index
