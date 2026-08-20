@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const groups = require("../api/lib/groups.js");
+const groups = require("../lib/groups.js");
 const createHandler = require("../api/groups/index.js");
 const getHandler = require("../api/groups/[code].js");
 const membersHandler = require("../api/groups/[code]/members.js");
@@ -152,7 +152,7 @@ test("create handler rejects invalid input before touching the database", async 
 
 test("create handler rejects oversized streamed bodies", async () => {
   const { EventEmitter } = require("node:events");
-  const { MAX_BODY_LENGTH } = require("../api/lib/http.js");
+  const { MAX_BODY_LENGTH } = require("../lib/http.js");
   const req = new EventEmitter();
   req.method = "POST";
   const res = fakeRes();

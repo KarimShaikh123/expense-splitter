@@ -108,12 +108,14 @@ expense_shares — resolved share per participant (the many-to-many join table)
 ## Files
 
 - `vercel.json` — static output, `cleanUrls`, nosniff header
+- `.vercelignore` — keeps `AGENTS.md`, `README.md`, `db/`, `test/`, `.github/` out of the deployment so repo internals are never publicly served (2026-08-20 audit fix)
 - `db/schema.sql` — the schema, source of truth
 - `db/migrate.js` — applies `schema.sql` to Neon (run via `npm run db:migrate`)
-- `api/lib/http.js` — shared: 8KB-capped JSON body reader, unique-violation detector, Karachi ISO + date formatters
-- `api/lib/groups.js` — shared: code generation + normalization, group/member/currency validation, `createGroup`
-- `api/lib/expenses.js` — shared: week bounds (Karachi), date validation, equal-share resolution, expense validation with the shares-sum invariant
-- `api/lib/settle.js` — shared: `computeBalances` (payer +amount, participants −shares) + greedy `settle` with the sum-to-zero assert
+- `lib/http.js` — shared: 8KB-capped JSON body reader, unique-violation detector, Karachi ISO + date formatters
+- `lib/groups.js` — shared: code generation + normalization, group/member/currency validation, `createGroup`
+- `lib/expenses.js` — shared: week bounds (Karachi), date validation, equal-share resolution, expense validation with the shares-sum invariant
+- `lib/settle.js` — shared: `computeBalances` (payer +amount, participants −shares) + greedy `settle` with the sum-to-zero assert
+- Shared code lives in top-level `lib/`, NOT `api/` — everything under `api/` is mounted as a public serverless endpoint; `lib/` is bundled into the functions via require-tracing but never mounted (2026-08-20 audit fix: `api/lib/settle.js` used to be a public 500 endpoint)
 - `api/groups/index.js` — POST /api/groups (create)
 - `api/groups/[code].js` — GET /api/groups/[code] (open by code, full contract shape incl. expenses + invariant assertion)
 - `api/groups/[code]/members.js` — POST /api/groups/[code]/members (add member)
@@ -158,4 +160,5 @@ Living checklist — update the tick in the same commit that completes the task.
 - [x] Review round 1 (2026-08-18, Karim's live test): group delete (API `DELETE /api/groups/[code]` + two-step UI button, removes code from localStorage, cascade proved live), Copy-link button (full group URL), **add-member UI** ("+ Add member" chip → inline input → the task-2 endpoint; trims, surfaces 409/429 verbatim, re-fetches), AED→Dh / SAR→SR symbols (native glyphs break in Latin fonts), symbol-before-number with no space, brighter red + green for positive amounts, balances/settlements as sentences (flex gaps were splitting the words). 49/49 tests + delete/add-member probes green
 - [x] Review round 2 (2026-08-18): real AED/SAR symbols (د.إ, ﷼) per Karim + Noto Sans Arabic web font so they render; spacing rule flipped to letter-symbols-get-a-space (Rs 1,000 / د.إ 1,000 / C$ 1,000 vs $1,000 / ﷼1,000); group delete from the home page list (two-step, 404 = remove locally). Member delete deferred — Karim: "do this later". Probe green across all 6 currencies + both home-delete paths
 - [x] Task 7 — Hardening (2026-08-18): XSS audit clean (zero innerHTML/eval; every user string goes through textContent — 74 sites); fresh-browser flows probed (no code → friendly message + zero fetches, malformed code same; empty + corrupt localStorage degrade to the empty note; junk codes in storage filtered out); date picker capped at this week's Sunday Karachi (matches the server rule); validation-before-DB ordering locked with 4 new tests (DATABASE_URL gate only after code/body/id checks); 53/53 tests. Known accepted gaps: no member delete yet (Karim deferred — cascade gotcha needs a design call); group-delete-from-home deletes for everyone (trust model, documented)
+- [x] Deploy-surface fix (2026-08-20, audit): `outputDirectory: "."` was serving the whole repo publicly (`/AGENTS.md`, `/db/schema.sql`, `/test/*` → 200; `api/lib/settle.js` mounted as a broken 500 endpoint). Shared code moved `api/lib/` → `lib/` (bundled via require-tracing, never mounted) + `.vercelignore` for docs/db/test/.github. Requires updated in 5 handlers + 3 test files; 53/53 tests
 - [x] Task 8 — Ship (2026-08-18): final audit green — 53/53 tests, zero comments/TBDs, `.env.local` untracked, 27-check live journey on production (one "failure" was the audit script's own arithmetic, app verified correct); deploy verified at HEAD; added to projects-index (six projects, verified by content + aliased commit). Explain-back: Karim passed cascades, recovery story, and edit-updates-facts; gaps corrected live — permissions scope + expense-id scoping under the code, and stored-vs-computed (answered "balances in the database" — re-taught with the edit scenario, confirmed landed)

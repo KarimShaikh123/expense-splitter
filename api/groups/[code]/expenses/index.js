@@ -1,7 +1,7 @@
 const { neon } = require("@neondatabase/serverless");
-const { readJsonBody, toKarachiIso } = require("../../../lib/http.js");
-const { normalizeCode, CODE_PATTERN } = require("../../../lib/groups.js");
-const { validateExpense, karachiWeekBounds, EXPENSE_LIMIT } = require("../../../lib/expenses.js");
+const { readJsonBody, toKarachiIso } = require("../../../../lib/http.js");
+const { normalizeCode, CODE_PATTERN } = require("../../../../lib/groups.js");
+const { validateExpense, karachiWeekBounds, EXPENSE_LIMIT } = require("../../../../lib/expenses.js");
 
 async function countGroupExpenses(sql, groupId) {
   const rows = await sql.query("SELECT COUNT(*) AS count FROM expenses WHERE group_id = $1", [groupId]);

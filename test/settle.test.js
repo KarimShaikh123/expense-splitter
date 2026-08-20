@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { computeBalances, settle } = require("../api/lib/settle.js");
+const { computeBalances, settle } = require("../lib/settle.js");
 
 function expense(amountCents, paidBy, shares) {
   return { amountCents, paidBy, shares: shares.map(([memberId, shareCents]) => ({ memberId, shareCents })) };

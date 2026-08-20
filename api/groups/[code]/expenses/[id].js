@@ -1,7 +1,7 @@
 const { neon } = require("@neondatabase/serverless");
-const { readJsonBody } = require("../../../lib/http.js");
-const { normalizeCode, CODE_PATTERN } = require("../../../lib/groups.js");
-const { validateExpense, karachiWeekBounds } = require("../../../lib/expenses.js");
+const { readJsonBody } = require("../../../../lib/http.js");
+const { normalizeCode, CODE_PATTERN } = require("../../../../lib/groups.js");
+const { validateExpense, karachiWeekBounds } = require("../../../../lib/expenses.js");
 
 async function replaceExpense(sql, expenseId, groupId, expense) {
   const updated = await sql.query(

@@ -1,7 +1,7 @@
 const { neon } = require("@neondatabase/serverless");
-const { toKarachiIso, toKarachiDate } = require("../lib/http.js");
-const { normalizeCode, CODE_PATTERN } = require("../lib/groups.js");
-const { computeBalances, settle } = require("../lib/settle.js");
+const { toKarachiIso, toKarachiDate } = require("../../lib/http.js");
+const { normalizeCode, CODE_PATTERN } = require("../../lib/groups.js");
+const { computeBalances, settle } = require("../../lib/settle.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "DELETE") {

@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const expenses = require("../api/lib/expenses.js");
+const expenses = require("../lib/expenses.js");
 const addHandler = require("../api/groups/[code]/expenses/index.js");
 const itemHandler = require("../api/groups/[code]/expenses/[id].js");
 

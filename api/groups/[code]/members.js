@@ -1,6 +1,6 @@
 const { neon } = require("@neondatabase/serverless");
-const { readJsonBody, isUniqueViolation } = require("../../lib/http.js");
-const { normalizeCode, validateMemberName, CODE_PATTERN, MAX_MEMBERS } = require("../../lib/groups.js");
+const { readJsonBody, isUniqueViolation } = require("../../../lib/http.js");
+const { normalizeCode, validateMemberName, CODE_PATTERN, MAX_MEMBERS } = require("../../../lib/groups.js");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
